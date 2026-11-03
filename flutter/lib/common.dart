@@ -3020,8 +3020,11 @@ int versionCmp(String v1, String v2) {
   return bind.versionToNumber(v: v1) - bind.versionToNumber(v: v2);
 }
 
+/// adm: nombre visible («adm Soporte Remoto»); el interno lleva guiones (rutas e instalación).
+String get appDisplayName => bind.mainGetAppNameSync().replaceAll('-', ' ');
+
 String getWindowName({WindowType? overrideType}) {
-  final name = bind.mainGetAppNameSync();
+  final name = appDisplayName;
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;

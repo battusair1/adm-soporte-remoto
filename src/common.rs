@@ -2556,6 +2556,12 @@ pub fn get_builtin_option(key: &str) -> String {
         .unwrap_or_default()
 }
 
+/// adm: nombre visible («adm Soporte Remoto»); el interno (rutas, servicio, registro) lleva guiones.
+#[inline]
+pub fn get_app_display_name() -> String {
+    get_app_name().replace('-', " ")
+}
+
 #[inline]
 pub fn is_custom_client() -> bool {
     get_app_name() != "RustDesk"
