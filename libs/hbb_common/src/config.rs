@@ -54,7 +54,9 @@ const SERIAL: i32 = 3;
 
 #[cfg(target_os = "macos")]
 lazy_static::lazy_static! {
-    pub static ref ORG: RwLock<String> = RwLock::new("co.atasesorias".to_owned());
+    // Se deja el de RustDesk: los scripts y rutas de launchd de macOS (src/platform/macos.rs, privileges_scripts)
+    // tienen «com.carriez.» escrito a mano; con otro ORG el servicio se instala con un nombre y se busca con otro.
+    pub static ref ORG: RwLock<String> = RwLock::new("com.carriez".to_owned());
 }
 
 type Size = (i32, i32, i32, i32);

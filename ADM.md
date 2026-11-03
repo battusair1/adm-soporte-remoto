@@ -28,6 +28,8 @@ interfaz y otros ignorados); el commit «Restaura los archivos de RustDesk 1.5.0
   vez se abre desde Ajustes del Sistema > Privacidad y seguridad > «Abrir igualmente».
 - Linux: paquete y ejecutable `adm-soporte-remoto` (servicio `adm-soporte-remoto.service`, `/usr/share/adm-soporte-remoto`),
   que es el nombre que el programa busca; lo arma `adm/linux/empaquetar-deb.sh` en lugar de `build.py`.
+  Nombre D-Bus propio (`co.atasesorias.adm_soporte_remoto`) para no cruzarse con un RustDesk oficial abierto.
+- `ORG` de macOS se deja en `com.carriez`, como en RustDesk: los nombres de launchd lo llevan escrito a mano.
 
 Por tener nombre propio, el cliente no se actualiza solo a la versión oficial de RustDesk.
 
