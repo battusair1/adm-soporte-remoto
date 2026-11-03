@@ -186,10 +186,11 @@ class _InstallPageBodyState extends State<_InstallPageBody>
                               .marginOnly(bottom: em),
                           InkWell(
                             hoverColor: Colors.transparent,
+                            // adm: la licencia real del programa (AGPL del fork), no la politica de RustDesk.
                             onTap: () => launchUrlString(
-                                'https://rustdesk.com/privacy.html'),
+                                'https://github.com/battusair1/adm-soporte-remoto/blob/main/LICENCE'),
                             child: Tooltip(
-                              message: 'https://rustdesk.com/privacy.html',
+                              message: 'https://github.com/battusair1/adm-soporte-remoto/blob/main/LICENCE',
                               child: Row(children: [
                                 Icon(Icons.launch_outlined, size: 16)
                                     .marginOnly(right: 5),

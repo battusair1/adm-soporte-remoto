@@ -193,7 +193,7 @@ async fn start_hbbs_sync_async() {
                             let samever = match crate::post_request(url.replace("heartbeat", "sysinfo_ver"), "".to_owned(), "").await {
                                 Ok(x)  => {
                                     sysinfo_ver = x.clone();
-                                    *PRO.lock().unwrap() = true;
+                                    // adm: nunca se activa el modo Pro por lo que conteste el servidor (ver is_pro).
                                     x == ver
                                 }
                                 _ => {
@@ -217,7 +217,6 @@ async fn start_hbbs_sync_async() {
                                     config::Status::set("sysinfo_hash", hash);
                                     config::Status::set("sysinfo_ver", sysinfo_ver.clone());
                                 }
-                                *PRO.lock().unwrap() = true;
                             } else if x == "ID_NOT_FOUND" {
                                 info_uploaded.last_uploaded = None; // next heartbeat will upload sysinfo again
                             } else {
@@ -265,11 +264,10 @@ async fn start_hbbs_sync_async() {
                                 }
                             }
                         }
-                        if let Some(strategy) = rsp.remove("strategy") {
-                            if let Ok(strategy) = serde_json::from_value::<StrategyOptions>(strategy) {
-                                log::info!("strategy updated");
-                                handle_config_options(strategy.config_options);
-                            }
+                        // adm: la configuracion del cliente la fija el instalador firmado de la sede, nunca una
+                        // respuesta del latido (permitiria cambiar opciones de seguridad desde el servidor).
+                        if rsp.remove("strategy").is_some() {
+                            log::warn!("strategy ignored: remote configuration is disabled in adm Soporte Remoto");
                         }
                     }
                 }
@@ -289,6 +287,7 @@ fn heartbeat_url() -> String {
     format!("{}/api/heartbeat", url)
 }
 
+#[allow(dead_code)]
 fn handle_config_options(config_options: HashMap<String, String>) {
     let mut options = Config::get_options();
     let default_settings = config::DEFAULT_SETTINGS.read().unwrap().clone();
@@ -311,7 +310,9 @@ fn handle_config_options(config_options: HashMap<String, String>) {
 #[allow(unused)]
 #[cfg(not(any(target_os = "ios")))]
 pub fn is_pro() -> bool {
-    PRO.lock().unwrap().clone()
+    // adm: siempre falso. En Pro el cliente acepta ocultar la ventana de conexion (hide_cm) y deja de avisar si
+    // falla; cualquier servidor que respondiera 200 a sysinfo_ver lo activaba. El soporte de adm es siempre visible.
+    false
 }
 
 // Fire-and-forget by design: the switch flow must not block on this POST.

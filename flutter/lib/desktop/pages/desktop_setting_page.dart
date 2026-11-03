@@ -2552,17 +2552,10 @@ class _AboutState extends State<_About> {
               SelectionArea(
                   child: Text('${translate('ID')}: $myId')
                       .marginSymmetric(vertical: 4.0)),
+              // adm: sin enlace a la politica de privacidad de RustDesk (no aplica al servicio de adm).
               InkWell(
                   onTap: () {
-                    launchUrlString('https://rustdesk.com/privacy.html');
-                  },
-                  child: Text(
-                    translate('Privacy Statement'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString('https://rustdesk.com');
+                    launchUrlString('https://adm.atasesorias.com');
                   },
                   child: Text(
                     translate('Website'),

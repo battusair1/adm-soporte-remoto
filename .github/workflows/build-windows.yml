@@ -117,6 +117,8 @@ jobs:
         run: |
           flutter precache --windows
           Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          # Huella fija (3-nov-2026): el recurso «main» se puede reemplazar y entra en cliente.exe; si cambia, se revisa.
+          if ((Get-FileHash windows-x64-release.zip -Algorithm SHA256).Hash -ne 'ec8cabf36ee4ff24c8d98de25b00e70781eb03876265aee84d0fe554a110036e') { throw 'windows-x64-release.zip no coincide con la huella fijada' }
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
           mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
@@ -159,6 +161,7 @@ jobs:
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
           # Controlador de pantalla virtual (mismo origen que el flujo oficial). No se incluye el de impresora remota.
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+          if ((Get-FileHash usbmmidd_v2.zip -Algorithm SHA256).Hash -ne '629b51e9944762bae73948171c65d09a79595cf4c771a82ebc003fbba5b24f51') { throw 'usbmmidd_v2.zip no coincide con la huella fijada' }
           Expand-Archive usbmmidd_v2.zip -DestinationPath .
           Remove-Item -Path usbmmidd_v2\Win32 -Recurse
           Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
