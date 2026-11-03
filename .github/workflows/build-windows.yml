@@ -178,10 +178,13 @@ jobs:
       - name: Ejecutable autoextraíble
         shell: bash
         run: |
+          # El servicio y la instalación usan "<APP_NAME>.exe" (libs/hbb_common/src/config.rs): el ejecutable de Flutter
+          # se llama rustdesk.exe y hay que renombrarlo, como hacen los clientes personalizados de RustDesk.
+          mv ./rustdesk/rustdesk.exe ./rustdesk/adm-Soporte-Remoto.exe
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
+          python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/adm-Soporte-Remoto.exe
           popd
           mkdir -p ./salida
           NOMBRE="adm-soporte-remoto-${GITHUB_REF_NAME#adm-v}-x86_64.exe"
