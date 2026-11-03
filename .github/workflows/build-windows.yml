@@ -68,8 +68,25 @@ jobs:
             ./flutter/lib/generated_bridge.dart
             ./flutter/lib/generated_bridge.freezed.dart
 
+  # Auxiliar del modo de privacidad por ventana (WindowInjection.dll), igual que el flujo oficial
+  # (third-party-RustDeskTempTopMostWindow.yml), fijado al mismo commit. Sin él ese modo de privacidad no se activa.
+  topmost:
+    runs-on: windows-2022
+    steps:
+      - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+      - name: Compilar WindowInjection
+        run: |
+          git clone https://github.com/rustdesk-org/RustDeskTempTopMostWindow RustDeskTempTopMostWindow
+          cd RustDeskTempTopMostWindow
+          git checkout ecd8d6a139eee76845ea66423fb739af450fda90
+          msbuild WindowInjection/WindowInjection.vcxproj -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: topmostwindow-x64
+          path: ./RustDeskTempTopMostWindow/WindowInjection/x64/Release/WindowInjection.dll
+
   windows:
-    needs: bridge
+    needs: [bridge, topmost]
     runs-on: windows-2022
     steps:
       - name: Caché de vcpkg en Actions
@@ -146,6 +163,11 @@ jobs:
           Remove-Item -Path usbmmidd_v2\Win32 -Recurse
           Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
           mv -Force .\usbmmidd_v2 ./rustdesk
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: topmostwindow-x64
+          path: ./rustdesk
 
       - name: Recursos de versión para el empaquetador
         shell: bash

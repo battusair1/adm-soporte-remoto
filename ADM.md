@@ -14,6 +14,8 @@ siguientes:
 - Servidor `rd.atasesorias.com` y su llave **pública**, por defecto (`libs/hbb_common/src/config.rs`).
 - Íconos y logo de Advising Technology (`res/`, `flutter/assets/`, `flutter/windows/runner/resources/`), y
   metadatos del ejecutable.
+- Sin la leyenda «Powered by RustDesk» en la ventana principal (`hide-powered-by-me`); la atribución y la licencia de
+  RustDesk siguen en «Acerca de».
 - Compilación solo para Windows x64 (`.github/workflows/build-windows.yml`). Se quitaron los flujos de las demás
   plataformas y no se incluye el controlador de impresora remota.
 
