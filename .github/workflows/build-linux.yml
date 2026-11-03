@@ -1,0 +1,191 @@
+# adm Soporte Remoto: compila el cliente de Linux x86_64 y lo empaqueta en .deb (Debian/Ubuntu).
+# Recorte del flujo oficial de RustDesk 1.5.0 (.github/workflows/flutter-build.yml + bridge.yml), con las mismas
+# versiones fijas de Flutter, Rust y vcpkg. Sin firma de código. Con una etiqueta adm-v* publica los paquetes y su
+# SHA-256 en el Release de la etiqueta; a mano (workflow_dispatch) solo deja el artefacto para probar.
+name: Compilar Linux x64
+
+on:
+  push:
+    tags: ["adm-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  RUST_VERSION: "1.75"
+  MAC_RUST_VERSION: "1.81"
+  FLUTTER_VERSION: "3.24.5"
+  BRIDGE_FLUTTER_VERSION: "3.22.3"
+  CARGO_EXPAND_VERSION: "1.0.95"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  VERSION: "1.5.0"
+
+jobs:
+  bridge:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Dependencias
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake curl gcc git g++ libclang-dev libgtk-3-dev llvm-dev nasm ninja-build pkg-config wget
+
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: bridge-ubuntu-22.04
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.BRIDGE_FLUTTER_VERSION }}
+          cache: true
+
+      - name: Generar el puente Flutter-Rust
+        run: |
+          cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+          sed -i -e 's/extended_text: 14.0.0/extended_text: 13.0.0/g' flutter/pubspec.yaml
+          pushd flutter && flutter pub get && popd
+          ~/.cargo/bin/flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bridge
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+
+
+  linux:
+    needs: [bridge]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Caché de vcpkg en Actions
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Espacio de disco
+        run: |
+          sudo rm -rf /opt/ghc /usr/local/lib/android /usr/share/dotnet
+          sudo apt-get update -y
+          sudo apt-get install -y nasm
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Nombre de la versión
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then V="${GITHUB_REF_NAME#adm-v}"; else V="prueba-${GITHUB_SHA::7}"; fi
+          echo "ADM_VER=$V" >> "$GITHUB_ENV"
+
+      - uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
+        with:
+          swap-size-gb: 12
+
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: "rustfmt"
+
+      - name: Versión de Rust para el contenedor
+        run: echo "RUST_TOOLCHAIN_VERSION=$(cargo --version | awk '{print $2}')" >> $GITHUB_ENV
+
+      - name: Solo la biblioteca dinámica (como el flujo oficial)
+        run: sed -i "s/\[\"cdylib\", \"staticlib\", \"rlib\"\]/\[\"cdylib\"\]/g" Cargo.toml
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bridge
+          path: ./
+
+      - uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Dependencias de vcpkg
+        shell: bash
+        run: |
+          sudo apt install -y libva-dev
+          if ! $VCPKG_ROOT/vcpkg install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do echo "$f:"; cat "$f"; done
+            exit 1
+          fi
+
+      # Ubuntu 18.04 como el oficial: el paquete sirve desde distribuciones viejas (glibc 2.27) en adelante.
+      - uses: rustdesk-org/run-on-arch-action@d3fcfbb632b84cf7f6bc772bfaaa2c2f4f8789a8 # sin etiqueta; commit 2026-05-26
+        name: Compilar
+        with:
+          arch: x86_64
+          distro: ubuntu18.04
+          githubToken: ${{ github.token }}
+          dockerRunArgs: |
+            --volume "${PWD}:/workspace"
+            --volume "/opt/artifacts:/opt/artifacts"
+          shell: /bin/bash
+          install: |
+            apt-get update -y
+            apt-get install -y build-essential clang cmake curl gcc git g++ libayatana-appindicator3-dev libasound2-dev \
+              libclang-10-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgtk-3-dev libpulse-dev libva-dev \
+              libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev libxfixes-dev llvm-10-dev nasm ninja-build \
+              pkg-config python3 unzip wget xz-utils libssl-dev
+            apt-get remove -y libopus-dev || true
+          run: |
+            git config --global --add safe.directory "*"
+            pushd /opt
+            wget -q -O rust.tar.gz https://static.rust-lang.org/dist/rust-${{ env.RUST_TOOLCHAIN_VERSION }}-x86_64-unknown-linux-gnu.tar.gz
+            tar -zxf rust.tar.gz && rm rust.tar.gz
+            (cd rust-${{ env.RUST_TOOLCHAIN_VERSION }}-x86_64-unknown-linux-gnu && ./install.sh > /dev/null)
+            rm -rf rust-${{ env.RUST_TOOLCHAIN_VERSION }}-x86_64-unknown-linux-gnu
+            wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+            tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+            export PATH=/opt/flutter/bin:$PATH
+            (cd /opt/flutter && git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff)
+            popd
+            cd /workspace
+            export VCPKG_ROOT=/opt/artifacts/vcpkg CARGO_INCREMENTAL=0
+            cargo build --locked --lib --features hwcodec,flutter,unix-file-copy-paste --release
+            rm -rf target/release/deps target/release/build
+            cd flutter && flutter build linux --release
+
+      - name: Paquete .deb
+        run: |
+          mkdir -p salida
+          NOMBRE="adm-soporte-remoto-${ADM_VER}-x86_64.deb"
+          V="${ADM_VER}"; [ "${GITHUB_REF_TYPE}" = "tag" ] || V="${{ env.VERSION }}~${ADM_VER}"
+          bash adm/linux/empaquetar-deb.sh "$V" amd64 flutter/build/linux/x64/release/bundle "salida/$NOMBRE"
+          cd salida && sha256sum "$NOMBRE" | tee "$NOMBRE.sha256"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: adm-soporte-remoto-linux-x86_64
+          path: ./salida
+
+      - name: Publicar en el Release
+        if: startsWith(github.ref, 'refs/tags/adm-v')
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        with:
+          name: adm Soporte Remoto ${{ github.ref_name }}
+          body: |
+            Cliente de soporte remoto de Advising Technology, basado en RustDesk ${{ env.VERSION }} (AGPL-3.0).
+            Código fuente: este repositorio en la etiqueta ${{ github.ref_name }}. Huella SHA-256 en cada archivo .sha256.
+          files: |
+            ./salida/*.deb
+            ./salida/*.sha256

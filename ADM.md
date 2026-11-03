@@ -19,15 +19,25 @@ interfaz y otros ignorados); el commit «Restaura los archivos de RustDesk 1.5.0
   metadatos del ejecutable.
 - Sin la leyenda «Powered by RustDesk» en la ventana principal (`hide-powered-by-me`); la atribución y la licencia de
   RustDesk siguen en «Acerca de».
-- Compilación solo para Windows x64 (`.github/workflows/build-windows.yml`). Se quitaron los flujos de las demás
-  plataformas y no se incluye el controlador de impresora remota.
+- Compilación para Windows x64 (`build-windows.yml`), macOS Apple Silicon e Intel (`build-macos.yml`, `.dmg`) y
+  Linux x86_64 (`build-linux.yml`, `.deb` para Debian/Ubuntu). Se quitaron los demás flujos (Android, iOS, web, rpm,
+  Flatpak, AppImage) y no se incluye el controlador de impresora remota.
+- macOS: la app se llama `adm-Soporte-Remoto.app` (el programa instala su servicio en `/Applications/<nombre>.app`),
+  identificador `co.atasesorias.adm-soporte-remoto`, enlace `adm-soporte-remoto://`; el módulo Swift conserva el nombre
+  `RustDesk` porque la ventana principal (`MainMenu.xib`) lo busca ahí. Va con firma ad hoc, sin notarizar: la primera
+  vez se abre desde Ajustes del Sistema > Privacidad y seguridad > «Abrir igualmente».
+- Linux: paquete y ejecutable `adm-soporte-remoto` (servicio `adm-soporte-remoto.service`, `/usr/share/adm-soporte-remoto`),
+  que es el nombre que el programa busca; lo arma `adm/linux/empaquetar-deb.sh` en lugar de `build.py`.
 
 Por tener nombre propio, el cliente no se actualiza solo a la versión oficial de RustDesk.
 
 ## Sacar una versión
 
 1. Etiqueta `adm-vX.Y.Z` (por ejemplo `adm-v1.5.0-1`) y `git push --tags`.
-2. El flujo publica un Release con `adm-soporte-remoto-X.Y.Z-x86_64.exe` y su `.sha256`.
-3. Advising Monitor descarga el ejecutable, verifica la huella y lo firma antes de entregarlo a los equipos.
+2. Los flujos publican en el Release `adm-soporte-remoto-X.Y.Z-x86_64.exe` (Windows),
+   `adm-soporte-remoto-X.Y.Z-aarch64.dmg` y `-x86_64.dmg` (macOS) y `adm-soporte-remoto-X.Y.Z-x86_64.deb` (Linux), cada
+   uno con su `.sha256`.
+3. Advising Monitor descarga el ejecutable de Windows, verifica la huella y lo firma antes de entregarlo a los equipos.
+   Los de macOS y Linux se bajan del Release (por ahora los usan los técnicos).
 
 Este repositorio no contiene código de Advising Monitor, llaves privadas ni datos de clientes.
