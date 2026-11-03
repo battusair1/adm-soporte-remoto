@@ -8,7 +8,10 @@ propio. Se distribuye bajo la misma licencia, **AGPL-3.0** (`LICENCE`); este rep
 
 El primer commit importa RustDesk 1.5.0 sin cambios (etiqueta `1.5.0`, commit `fada664`) y `hbb_common` en el commit
 `229b904508364c8997aad0fb5af57effac859f60`, que en el original es un submódulo. Todo lo demás está en los commits
-siguientes:
+siguientes. Nota: al importar, la regla `*png` del `.gitignore` original dejó fuera 120 archivos (imágenes, SVG de la
+interfaz y otros ignorados); el commit «Restaura los archivos de RustDesk 1.5.0…» los trae tal cual desde la etiqueta
+`1.5.0`, salvo el ícono de respaldo (`flutter/assets/icon.svg`, `res/icon.png`), que es el propio.
+
 
 - Nombre interno `adm-Soporte-Remoto` (rutas, servicio y registro de Windows); se muestra «adm Soporte Remoto».
 - Servidor `rd.atasesorias.com` y su llave **pública**, por defecto (`libs/hbb_common/src/config.rs`).
