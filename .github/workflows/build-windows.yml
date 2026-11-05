@@ -1,6 +1,6 @@
 # adm Soporte Remoto: compila el cliente de Windows x64.
 # Recorte del flujo oficial de RustDesk 1.5.0 (.github/workflows/flutter-build.yml + bridge.yml, job x86_64), con
-# las mismas versiones fijas de Flutter, Rust, LLVM y vcpkg. Sin MSI, sin firma de código, sin otras plataformas.
+# las mismas versiones fijas de Flutter, Rust, LLVM y vcpkg. Sin MSI ni otras plataformas; firma Authenticode con eSigner.
 # Con una etiqueta adm-v* publica el instalador y su SHA-256 en un Release; a mano (workflow_dispatch) solo deja el
 # artefacto para probar.
 name: Compilar Windows x64
@@ -88,7 +88,15 @@ jobs:
   windows:
     needs: [bridge, topmost]
     runs-on: windows-2022
+    env:
+      # Firma Authenticode con eSigner de SSL.com (certificado OV de Advising Technology). Sin los secretos el flujo
+      # compila igual, sin firma; con etiqueta adm-v* la firma es obligatoria (paso «Exigir firma»).
+      FIRMA: ${{ secrets.ES_USERNAME != '' && 'si' || 'no' }}
     steps:
+      - name: Exigir firma en las versiones publicadas
+        if: startsWith(github.ref, 'refs/tags/adm-v') && env.FIRMA != 'si'
+        run: throw 'Faltan los secretos de eSigner (ES_USERNAME, ES_PASSWORD, CREDENTIAL_ID, ES_TOTP_SECRET)'
+
       - name: Caché de vcpkg en Actions
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         with:
@@ -172,6 +180,20 @@ jobs:
           name: topmostwindow-x64
           path: ./rustdesk
 
+      - name: Firmar el ejecutable interno
+        if: env.FIRMA == 'si'
+        uses: SSLcom/esigner-codesign@cf5f6c1d38ad10f47e3ed9aca873f429b1a8d85b # v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/rustdesk/rustdesk.exe
+          override: true
+          malware_block: false
+          environment_name: PROD
+
       - name: Recursos de versión para el empaquetador
         shell: bash
         run: |
@@ -193,7 +215,30 @@ jobs:
           NOMBRE="adm-soporte-remoto-${GITHUB_REF_NAME#adm-v}-x86_64.exe"
           [ "${GITHUB_REF_TYPE}" = "tag" ] || NOMBRE="adm-soporte-remoto-prueba-${GITHUB_SHA::7}-x86_64.exe"
           mv ./target/release/rustdesk-portable-packer.exe "./salida/$NOMBRE"
-          cd salida && sha256sum "$NOMBRE" | tee "$NOMBRE.sha256"
+          echo "NOMBRE=$NOMBRE" >> "$GITHUB_ENV"
+
+      - name: Firmar el ejecutable final
+        if: env.FIRMA == 'si'
+        uses: SSLcom/esigner-codesign@cf5f6c1d38ad10f47e3ed9aca873f429b1a8d85b # v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/salida/${{ env.NOMBRE }}
+          override: true
+          malware_block: false
+          environment_name: PROD
+
+      - name: Huella SHA-256 (después de firmar)
+        shell: bash
+        run: |
+          cd salida
+          if [ "$FIRMA" = "si" ]; then
+            powershell -NoProfile -Command "\$s = Get-AuthenticodeSignature '$NOMBRE'; \$s | Format-List Status,SignerCertificate; if (\$s.Status -ne 'Valid') { exit 1 }"
+          fi
+          sha256sum "$NOMBRE" | tee "$NOMBRE.sha256"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
