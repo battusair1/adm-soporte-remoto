@@ -90,8 +90,8 @@ jobs:
     runs-on: windows-2022
     env:
       # Firma Authenticode con eSigner de SSL.com (certificado OV de Advising Technology). Sin los secretos el flujo
-      # compila igual, sin firma; con etiqueta adm-v* la firma es obligatoria (paso «Exigir firma»).
-      FIRMA: ${{ secrets.ES_USERNAME != '' && 'si' || 'no' }}
+      # compila igual, sin firma (hacen falta los cuatro); con etiqueta adm-v* la firma es obligatoria (paso «Exigir firma»).
+      FIRMA: ${{ (secrets.ES_USERNAME != '' && secrets.ES_PASSWORD != '' && secrets.CREDENTIAL_ID != '' && secrets.ES_TOTP_SECRET != '') && 'si' || 'no' }}
     steps:
       - name: Exigir firma en las versiones publicadas
         if: startsWith(github.ref, 'refs/tags/adm-v') && env.FIRMA != 'si'
