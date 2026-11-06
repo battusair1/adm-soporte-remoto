@@ -50,6 +50,20 @@ class SigningTests(unittest.TestCase):
                     esigner.main()
             self.assertNotIn("private-value", str(error.exception))
 
+    def test_other_errors_redact_credentials(self):
+        with tempfile.TemporaryDirectory() as temp:
+            jar = Path(temp) / "adm-esigner-1.3.0/jar/code_sign_tool-1.3.0.jar"
+            jar.parent.mkdir(parents=True)
+            jar.touch()
+            env = {"RUNNER_TEMP": temp, "JAVA_HOME": temp, "ES_USERNAME": "private-user",
+                   "ES_PASSWORD": "private-password", "CREDENTIAL_ID": "private-credential"}
+            result = subprocess.CompletedProcess([], 0, "Error: failed private-user private-password private-credential", "")
+            with patch.dict(os.environ, env), patch.object(esigner.sys, "argv", ["esigner.py"]), \
+                    patch.object(esigner.subprocess, "run", return_value=result):
+                with self.assertRaisesRegex(RuntimeError, "Error: failed") as error:
+                    esigner.main()
+            self.assertNotIn("private-", str(error.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

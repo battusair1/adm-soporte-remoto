@@ -15,7 +15,8 @@ SHA256 = "e22094505decbe622afe5b0c27abc618ed2ba179bd94f3450490352399d5ef2a"
 
 
 def main():
-    signing = len(sys.argv) == 2
+    info = len(sys.argv) == 2 and sys.argv[1] == "--info"
+    signing = len(sys.argv) == 2 and not info
     names = ["ES_USERNAME", "ES_PASSWORD", "CREDENTIAL_ID"]
     if signing:
         names.append("ES_TOTP_SECRET")
@@ -36,12 +37,14 @@ def main():
 
     java_home = os.environ.get("JAVA_HOME_11_X64") or os.environ.get("JAVA_HOME")
     java = Path(java_home) / "bin" / "java.exe" if java_home else root / "jdk-11.0.2/bin/java.exe"
-    args = [str(java), "-Xmx1024M", "-jar", str(jar), "sign" if signing else "get_credential_ids",
+    command = "sign" if signing else "credential_info" if info else "get_credential_ids"
+    args = [str(java), "-Xmx1024M", "-jar", str(jar), command,
             "-username=" + os.environ["ES_USERNAME"],
             "-password=" + os.environ["ES_PASSWORD"]]
+    if signing or info:
+        args.append("-credential_id=" + os.environ["CREDENTIAL_ID"])
     if signing:
-        args += ["-credential_id=" + os.environ["CREDENTIAL_ID"],
-                 "-totp_secret=" + os.environ["ES_TOTP_SECRET"],
+        args += ["-totp_secret=" + os.environ["ES_TOTP_SECRET"],
                  "-input_file_path=" + str(Path(sys.argv[1]).resolve()),
                  "-override=true", "-malware_block=false"]
 
@@ -59,11 +62,16 @@ def main():
             if code in output.lower():
                 raise RuntimeError("SSL.com devolvio: " + code)
         if result.returncode or any(word in output for word in ("Error:", "Exception", "Missing required", "Unmatched argument")):
-            raise RuntimeError("CodeSignTool fallo; su salida se mantiene privada para proteger las credenciales.")
-        expected = "Code signed successfully" if signing else "Credential ID(s):"
+            detail = next((line for line in output.splitlines() if line.startswith("Error:")),
+                          "CodeSignTool fallo con codigo " + str(result.returncode))
+            for name in ("ES_USERNAME", "ES_PASSWORD", "CREDENTIAL_ID", "ES_TOTP_SECRET"):
+                if os.environ.get(name):
+                    detail = detail.replace(os.environ[name], "[oculto]")
+            raise RuntimeError(detail[:400])
+        expected = "Code signed successfully" if signing else "ADVISING TECHNOLOGY S.A.S." if info else "Credential ID(s):"
         if expected not in output:
             raise RuntimeError("No se pudo confirmar la firma o la consulta de credenciales de SSL.com.")
-        if not signing and os.environ["CREDENTIAL_ID"] not in output:
+        if not signing and not info and os.environ["CREDENTIAL_ID"] not in output:
             raise RuntimeError("El acceso a SSL.com funciona, pero CREDENTIAL_ID no pertenece a las credenciales disponibles para esta cuenta.")
         print("Firma completada." if signing else "Acceso a SSL.com y CREDENTIAL_ID comprobados. No se ha solicitado una firma.")
     finally:
