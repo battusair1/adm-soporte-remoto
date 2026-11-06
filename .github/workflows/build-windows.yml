@@ -25,7 +25,24 @@ env:
   VERSION: "1.5.0"
 
 jobs:
+  comprobar-firma:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    env:
+      FIRMA: ${{ (secrets.ES_USERNAME != '' && secrets.ES_PASSWORD != '' && secrets.CREDENTIAL_ID != '' && secrets.ES_TOTP_SECRET != '') && 'si' || 'no' }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Comprobar acceso a SSL.com antes de compilar
+        if: env.FIRMA == 'si'
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
+        run: python .github/scripts/esigner.py
+
   bridge:
+    needs: comprobar-firma
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -71,6 +88,7 @@ jobs:
   # Auxiliar del modo de privacidad por ventana (WindowInjection.dll), igual que el flujo oficial
   # (third-party-RustDeskTempTopMostWindow.yml), fijado al mismo commit. Sin él ese modo de privacidad no se activa.
   topmost:
+    needs: comprobar-firma
     runs-on: windows-2022
     steps:
       - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
@@ -182,17 +200,19 @@ jobs:
 
       - name: Firmar el ejecutable interno
         if: env.FIRMA == 'si'
-        uses: SSLcom/esigner-codesign@cf5f6c1d38ad10f47e3ed9aca873f429b1a8d85b # v1.3.2
-        with:
-          command: sign
-          username: ${{ secrets.ES_USERNAME }}
-          password: ${{ secrets.ES_PASSWORD }}
-          credential_id: ${{ secrets.CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
-          file_path: ${{ github.workspace }}/rustdesk/rustdesk.exe
-          override: true
-          malware_block: false
-          environment_name: PROD
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: python .github/scripts/esigner.py "rustdesk/rustdesk.exe"
+
+      - name: Verificar firma interna
+        if: env.FIRMA == 'si'
+        run: |
+          $firma = Get-AuthenticodeSignature 'rustdesk/rustdesk.exe'
+          $firma | Format-List Status,SignerCertificate
+          if ($firma.Status -ne 'Valid') { throw 'La firma interna no es valida' }
 
       - name: Recursos de versión para el empaquetador
         shell: bash
@@ -219,17 +239,12 @@ jobs:
 
       - name: Firmar el ejecutable final
         if: env.FIRMA == 'si'
-        uses: SSLcom/esigner-codesign@cf5f6c1d38ad10f47e3ed9aca873f429b1a8d85b # v1.3.2
-        with:
-          command: sign
-          username: ${{ secrets.ES_USERNAME }}
-          password: ${{ secrets.ES_PASSWORD }}
-          credential_id: ${{ secrets.CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
-          file_path: ${{ github.workspace }}/salida/${{ env.NOMBRE }}
-          override: true
-          malware_block: false
-          environment_name: PROD
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: python .github/scripts/esigner.py "salida/${{ env.NOMBRE }}"
 
       - name: Huella SHA-256 (después de firmar)
         shell: bash
