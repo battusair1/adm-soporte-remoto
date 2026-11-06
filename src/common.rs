@@ -2308,7 +2308,13 @@ pub fn create_symmetric_key_msg(their_pk_b: [u8; 32]) -> (Bytes, Bytes, secretbo
 
 #[inline]
 pub fn using_public_server() -> bool {
+    // adm: el servidor propio viene compilado en RENDEZVOUS_SERVERS. Sin opción escrita, solo es
+    // «público» si ese servidor por defecto es de rustdesk.com (si no, saldría el aviso de
+    // «configure su propio servidor» y se recortaría la calidad de imagen por el relevo).
     crate::get_custom_rendezvous_server(get_option("custom-rendezvous-server")).is_empty()
+        && hbb_common::config::RENDEZVOUS_SERVERS
+            .iter()
+            .any(|s| is_public(s))
 }
 
 pub struct ThrottledInterval {
