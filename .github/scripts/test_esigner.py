@@ -26,8 +26,8 @@ class SigningTests(unittest.TestCase):
             def run(args, **kwargs):
                 self.assertFalse(kwargs["shell"])
                 self.assertIn("-password=" + password, args)
-                self.assertEqual(args[4], "credential_info")
-                return subprocess.CompletedProcess(args, 0, "ADVISING TECHNOLOGY S.A.S.", "")
+                self.assertEqual(args[4], "get_credential_ids")
+                return subprocess.CompletedProcess(args, 0, "Credential ID(s):\n- credential", "")
 
             output = io.StringIO()
             with patch.dict(os.environ, env), patch.object(esigner.sys, "argv", ["esigner.py"]), \

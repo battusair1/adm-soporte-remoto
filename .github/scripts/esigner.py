@@ -36,12 +36,12 @@ def main():
 
     java_home = os.environ.get("JAVA_HOME_11_X64") or os.environ.get("JAVA_HOME")
     java = Path(java_home) / "bin" / "java.exe" if java_home else root / "jdk-11.0.2/bin/java.exe"
-    args = [str(java), "-Xmx1024M", "-jar", str(jar), "sign" if signing else "credential_info",
+    args = [str(java), "-Xmx1024M", "-jar", str(jar), "sign" if signing else "get_credential_ids",
             "-username=" + os.environ["ES_USERNAME"],
-            "-password=" + os.environ["ES_PASSWORD"],
-            "-credential_id=" + os.environ["CREDENTIAL_ID"]]
+            "-password=" + os.environ["ES_PASSWORD"]]
     if signing:
-        args += ["-totp_secret=" + os.environ["ES_TOTP_SECRET"],
+        args += ["-credential_id=" + os.environ["CREDENTIAL_ID"],
+                 "-totp_secret=" + os.environ["ES_TOTP_SECRET"],
                  "-input_file_path=" + str(Path(sys.argv[1]).resolve()),
                  "-override=true", "-malware_block=false"]
 
@@ -55,12 +55,17 @@ def main():
             raise RuntimeError("SSL.com rechazo el acceso (invalid_grant). Revisar ES_USERNAME/ES_PASSWORD o el estado de la cuenta; no se ha firmado.")
         if "invalid otp" in output.lower():
             raise RuntimeError("SSL.com rechazo el OTP. Revisar ES_TOTP_SECRET para este certificado.")
+        for code in ("invalid_request", "invalid_client", "invalid_token", "access_denied", "invalid_credential", "key status is disabled"):
+            if code in output.lower():
+                raise RuntimeError("SSL.com devolvio: " + code)
         if result.returncode or any(word in output for word in ("Error:", "Exception", "Missing required", "Unmatched argument")):
             raise RuntimeError("CodeSignTool fallo; su salida se mantiene privada para proteger las credenciales.")
-        expected = "Code signed successfully" if signing else "ADVISING TECHNOLOGY S.A.S."
+        expected = "Code signed successfully" if signing else "Credential ID(s):"
         if expected not in output:
-            raise RuntimeError("No se pudo confirmar la firma o el certificado esperado de ADVISING TECHNOLOGY S.A.S.")
-        print("Firma completada." if signing else "Acceso a SSL.com y certificado de ADVISING TECHNOLOGY S.A.S. comprobados. No se ha solicitado una firma.")
+            raise RuntimeError("No se pudo confirmar la firma o la consulta de credenciales de SSL.com.")
+        if not signing and os.environ["CREDENTIAL_ID"] not in output:
+            raise RuntimeError("El acceso a SSL.com funciona, pero CREDENTIAL_ID no pertenece a las credenciales disponibles para esta cuenta.")
+        print("Firma completada." if signing else "Acceso a SSL.com y CREDENTIAL_ID comprobados. No se ha solicitado una firma.")
     finally:
         shutil.rmtree(root / "logs", ignore_errors=True)
 
