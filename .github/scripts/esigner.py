@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,6 +13,16 @@ import zipfile
 
 URL = "https://github.com/SSLcom/CodeSignTool/releases/download/v1.3.0/CodeSignTool-v1.3.0-windows.zip"
 SHA256 = "e22094505decbe622afe5b0c27abc618ed2ba179bd94f3450490352399d5ef2a"
+
+
+def redactar(texto):
+    """Oculta todos los secretos de una pasada, del más largo al más corto, para que un secreto que
+    contiene a otro (p. ej. la contraseña empieza por el usuario) no quede visible a medias."""
+    secretos = sorted({os.environ[n] for n in ("ES_USERNAME", "ES_PASSWORD", "CREDENTIAL_ID", "ES_TOTP_SECRET")
+                       if os.environ.get(n)}, key=len, reverse=True)
+    if not secretos:
+        return texto
+    return re.sub("|".join(re.escape(x) for x in secretos), "[oculto]", texto)
 
 
 def main():
@@ -64,10 +75,7 @@ def main():
         if result.returncode or any(word in output for word in ("Error:", "Exception", "Missing required", "Unmatched argument")):
             detail = next((line for line in output.splitlines() if line.startswith("Error:")),
                           "CodeSignTool fallo con codigo " + str(result.returncode))
-            for name in ("ES_USERNAME", "ES_PASSWORD", "CREDENTIAL_ID", "ES_TOTP_SECRET"):
-                if os.environ.get(name):
-                    detail = detail.replace(os.environ[name], "[oculto]")
-            raise RuntimeError(detail[:400])
+            raise RuntimeError(redactar(detail)[:400])
         expected = "Code signed successfully" if signing else "ADVISING TECHNOLOGY S.A.S." if info else "Credential ID(s):"
         if expected not in output:
             raise RuntimeError("No se pudo confirmar la firma o la consulta de credenciales de SSL.com.")

@@ -64,6 +64,22 @@ class SigningTests(unittest.TestCase):
                     esigner.main()
             self.assertNotIn("private-", str(error.exception))
 
+    def test_overlapping_secrets_are_fully_redacted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            jar = Path(temp) / "adm-esigner-1.3.0/jar/code_sign_tool-1.3.0.jar"
+            jar.parent.mkdir(parents=True)
+            jar.touch()
+            env = {"RUNNER_TEMP": temp, "JAVA_HOME": temp, "ES_USERNAME": "demo",
+                   "ES_PASSWORD": "demo-password-suffix", "CREDENTIAL_ID": "cred"}
+            result = subprocess.CompletedProcess([], 1, "Error: demo-password-suffix demo cred", "")
+            with patch.dict(os.environ, env), patch.object(esigner.sys, "argv", ["esigner.py"]), \
+                    patch.object(esigner.subprocess, "run", return_value=result):
+                with self.assertRaises(RuntimeError) as error:
+                    esigner.main()
+            mensaje = str(error.exception)
+            for parte in ("demo", "password", "suffix", "cred"):
+                self.assertNotIn(parte, mensaje)
+
 
 if __name__ == "__main__":
     unittest.main()

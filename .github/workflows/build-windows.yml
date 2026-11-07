@@ -14,6 +14,10 @@ on:
         description: Probar la firma con el artefacto anterior, sin recompilar ni publicar
         type: boolean
         default: false
+      run_diagnostico:
+        description: Ejecución de la que se toma el .exe para el diagnóstico (debe tener el artefacto vigente)
+        type: string
+        default: "42263605981"
 
 permissions:
   contents: write
@@ -39,6 +43,12 @@ jobs:
       FIRMA: ${{ (secrets.ES_USERNAME != '' && secrets.ES_PASSWORD != '' && secrets.CREDENTIAL_ID != '' && secrets.ES_TOTP_SECRET != '') && 'si' || 'no' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: El diagnóstico exige los cuatro secretos
+        if: inputs.diagnostico_firma && env.FIRMA != 'si'
+        run: |
+          Write-Output "::error::Diagnóstico de firma pedido, pero falta alguno de ES_USERNAME, ES_PASSWORD, CREDENTIAL_ID o ES_TOTP_SECRET."
+          exit 1
+
       - name: Comprobar acceso a SSL.com antes de compilar
         if: env.FIRMA == 'si'
         env:
@@ -61,7 +71,7 @@ jobs:
         with:
           name: adm-soporte-remoto-windows-x86_64
           path: prueba-firma
-          run-id: 41999238261
+          run-id: ${{ inputs.run_diagnostico }}
           github-token: ${{ github.token }}
 
       - name: Probar firma sin recompilar
